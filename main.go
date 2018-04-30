@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/docker/go-plugins-helpers/volume"
@@ -36,6 +38,8 @@ func newJfsDriver(root string) (*jfsDriver, error) {
 }
 
 func (d *jfsDriver) Create(r *volume.CreateRequest) error {
+	logrus.WithField("method", "create").Debugf("%#v", r)
+
 	d.Lock()
 	defer d.Unlock()
 
@@ -61,9 +65,7 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	}
 
 	if v.Name == "" {
-		errMsg := "'name' option required"
-		logrus.Error(errMsg)
-		return fmt.Errorf(errMsg)
+		return logError("'name' option required")
 	}
 
 	v.Mountpoint = filepath.Join(d.root, v.Name)
@@ -100,7 +102,17 @@ func (d *jfsDriver) Capabilities() *volume.CapabilitiesResponse {
 	return nil
 }
 
+func logError(format string, args ...interface{}) error {
+	logrus.Errorf(format, args...)
+	return fmt.Errorf(format, args...)
+}
+
 func main() {
+	debug := os.Getenv("DEBUG")
+	if ok, _ := strconv.ParseBool(debug); ok {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	d, err := newJfsDriver("/jfs")
 	if err != nil {
 		logrus.Fatal(err)

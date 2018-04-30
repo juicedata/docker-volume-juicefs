@@ -75,6 +75,27 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 }
 
 func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
+	logrus.WithField("method", "remove").Debug("%#v", r)
+
+	d.Lock()
+	defer d.Unlock()
+
+	v, ok := d.volumes[r.Name]
+
+	if !ok {
+		return logError("volume %s not found", r.Name)
+	}
+
+	if v.connections != 0 {
+		return logError("volume %s is in use", r.Name)
+	}
+
+	if err := os.RemoveAll(v.Mountpoint); err != nil {
+		return logError(err.Error())
+	}
+
+	delete(d.volumes, r.Name)
+
 	return nil
 }
 

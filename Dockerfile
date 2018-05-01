@@ -12,8 +12,10 @@ RUN wget -q juicefs.io/static/juicefs \
     && chmod +x juicefs
 CMD ["/go/bin/docker-volume-juicefs"]
 
-FROM python:2-alpine
+FROM jfloff/alpine-python:2.7-slim
 RUN mkdir -p /run/docker/plugins /jfs/state /jfs/volumes
 COPY --from=builder /go/bin/docker-volume-juicefs .
 COPY --from=builder /juicefs /usr/local/bin/
+# Workaround for case insensitive file system on macOS
+RUN rm -rf /usr/share/terminfo
 CMD ["docker-volume-juicefs"]

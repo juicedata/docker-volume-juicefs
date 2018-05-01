@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -29,12 +32,44 @@ type jfsVolume struct {
 type jfsDriver struct {
 	sync.RWMutex
 
-	root    string
-	volumes map[string]*jfsVolume
+	root      string
+	statePath string
+	volumes   map[string]*jfsVolume
 }
 
 func newJfsDriver(root string) (*jfsDriver, error) {
-	return &jfsDriver{root: root}, nil
+	logrus.WithField("method", "newJfsDriver").Debug(root)
+
+	d := &jfsDriver{
+		root:      root,
+		statePath: filepath.Join(root, "jfs-state.json"),
+		volumes:   map[string]*jfsVolume{},
+	}
+
+	if data, err := ioutil.ReadFile(d.statePath); err != nil {
+		if os.IsNotExist(err) {
+			logrus.WithField("statePath", d.statePath).Debug("no state found")
+		} else {
+			return nil, err
+		}
+	} else {
+		if err := json.Unmarshal(data, &d.volumes); err != nil {
+			return nil, err
+		}
+	}
+
+	return d, nil
+}
+
+func (d *jfsDriver) saveState() {
+	data, err := json.Marshal(d.volumes)
+	if err != nil {
+		logrus.WithField("statePath", d.statePath).Error(err)
+	}
+
+	if err := ioutil.WriteFile(d.statePath, data, 0600); err != nil {
+		logrus.WithField("saveState", d.statePath).Error(err)
+	}
 }
 
 func (d *jfsDriver) Create(r *volume.CreateRequest) error {
@@ -70,12 +105,13 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 
 	v.Mountpoint = filepath.Join(d.root, v.Name)
 	d.volumes[r.Name] = v
+	d.saveState()
 
 	return nil
 }
 
 func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
-	logrus.WithField("method", "remove").Debug("%#v", r)
+	logrus.WithField("method", "remove").Debugf("%#v", r)
 
 	d.Lock()
 	defer d.Unlock()
@@ -95,32 +131,103 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 	}
 
 	delete(d.volumes, r.Name)
-
+	d.saveState()
 	return nil
-}
-
-func (d *jfsDriver) List() (*volume.ListResponse, error) {
-	return nil, nil
-}
-
-func (d *jfsDriver) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
-	return nil, nil
 }
 
 func (d *jfsDriver) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
-	return nil, nil
+	logrus.WithField("method", "path").Debugf("%#v", r)
+
+	d.RLock()
+	defer d.RUnlock()
+
+	v, ok := d.volumes[r.Name]
+	if !ok {
+		return &volume.PathResponse{}, logError("volume %s not found", r.Name)
+	}
+
+	return &volume.PathResponse{Mountpoint: v.Mountpoint}, nil
 }
 
 func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
-	return nil, nil
+	logrus.WithField("method", "mount").Debugf("%#v", r)
+
+	v, ok := d.volumes[r.Name]
+	if !ok {
+		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
+	}
+
+	if v.connections == 0 {
+		cmd := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
+		if v.AccessKey != "" {
+			cmd.Args = append(cmd.Args, "--accesskey="+v.AccessKey)
+		}
+		if v.SecretKey != "" {
+			cmd.Args = append(cmd.Args, "--secretkey="+v.SecretKey)
+		}
+		logrus.Debug(cmd)
+		if err := cmd.Run(); err != nil {
+			return &volume.MountResponse{}, logError(err.Error())
+		}
+	}
+
+	v.connections++
+
+	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
 
 func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
+	logrus.WithField("method", "umount").Debugf("%#v", r)
+
+	v, ok := d.volumes[r.Name]
+	if !ok {
+		return logError("volume %s not found", r.Name)
+	}
+
+	v.connections--
+
+	if v.connections <= 0 {
+		cmd := exec.Command("umount", v.Mountpoint)
+		logrus.Debug(cmd)
+		if err := cmd.Run(); err != nil {
+			return logError(err.Error())
+		}
+		v.connections = 0
+	}
 	return nil
 }
 
+func (d *jfsDriver) Get(r *volume.GetRequest) (*volume.GetResponse, error) {
+	logrus.WithField("method", "get").Debugf("%#v", r)
+
+	d.Lock()
+	defer d.Unlock()
+
+	v, ok := d.volumes[r.Name]
+	if !ok {
+		return &volume.GetResponse{}, logError("volume %s not found", r.Name)
+	}
+
+	return &volume.GetResponse{Volume: &volume.Volume{Name: r.Name, Mountpoint: v.Mountpoint}}, nil
+}
+
+func (d *jfsDriver) List() (*volume.ListResponse, error) {
+	logrus.WithField("method", "list").Debugf("")
+
+	d.Lock()
+	defer d.Unlock()
+
+	var vols []*volume.Volume
+	for name, v := range d.volumes {
+		vols = append(vols, &volume.Volume{Name: name, Mountpoint: v.Mountpoint})
+	}
+	return &volume.ListResponse{Volumes: vols}, nil
+}
+
 func (d *jfsDriver) Capabilities() *volume.CapabilitiesResponse {
-	return nil
+	logrus.WithField("method", "capabilities").Debugf("")
+
+	return &volume.CapabilitiesResponse{Capabilities: volume.Capability{Scope: "local"}}
 }
 
 func logError(format string, args ...interface{}) error {

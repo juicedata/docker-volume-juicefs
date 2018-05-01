@@ -43,8 +43,8 @@ func newJfsDriver(root string) (*jfsDriver, error) {
 	logrus.WithField("method", "newJfsDriver").Debug(root)
 
 	d := &jfsDriver{
-		root:      root,
-		statePath: filepath.Join(root, "jfs-state.json"),
+		root:      filepath.Join(root, "volumes"),
+		statePath: filepath.Join(root, "state", "jfs-state.json"),
 		volumes:   map[string]*jfsVolume{},
 	}
 
@@ -173,15 +173,20 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 			return &volume.MountResponse{}, logError("%v already exist and it's not a directory", v.Mountpoint)
 		}
 
-		cmd := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
+		auth := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
 		if v.AccessKey != "" {
-			cmd.Args = append(cmd.Args, "--accesskey="+v.AccessKey)
+			auth.Args = append(auth.Args, "--accesskey="+v.AccessKey)
 		}
 		if v.SecretKey != "" {
-			cmd.Args = append(cmd.Args, "--secretkey="+v.SecretKey)
+			auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
 		}
-		logrus.Debug(cmd)
-		if err := cmd.Run(); err != nil {
+		logrus.Debug(auth)
+		if err := auth.Run(); err != nil {
+			return &volume.MountResponse{}, logError(err.Error())
+		}
+
+		mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
+		if err := mount.Run(); err != nil {
 			return &volume.MountResponse{}, logError(err.Error())
 		}
 	}

@@ -14,6 +14,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO(yujunz) load state from juicefs configuration in ~/.juicefs
+
 const socketAddress = "/run/docker/plugins/jfs.sock"
 
 type jfsVolume struct {

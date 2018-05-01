@@ -1,0 +1,50 @@
+{
+    "description": "juicefs plugin for Docker",
+    "documentation": "https://github.com/juicedata/docker-volume-juicefs",
+    "entrypoint": [
+        "/docker-volume-juicefs"
+    ],
+    "env": [
+        {
+            "name": "DEBUG",
+            "settable": [
+                "value"
+            ],
+            "value": "0"
+        }
+    ],
+    "interface": {
+        "socket": "jfs.sock",
+        "types": [
+            "docker.volumedriver/1.0"
+        ]
+    },
+    "linux": {
+        "capabilities": [
+            "CAP_SYS_ADMIN"
+        ],
+        "devices": [
+            {
+                "path": "/dev/fuse"
+            }
+        ]
+    },
+    "mount": [
+        {
+            "destination": "/jfs/state",
+            "options": [
+                "rbind"
+            ],
+            "name": "state",
+            "source": "/var/lib/docker/plugins/",
+            "settable": [
+                "source"
+            ],
+            "type": "bind"
+        }
+    ],
+    "network": {
+        "type": "host"
+    },
+    "propagatedmount": "/jfs/volumes"
+}

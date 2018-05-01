@@ -160,6 +160,19 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	}
 
 	if v.connections == 0 {
+		fi, err := os.Lstat(v.Mountpoint)
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(v.Mountpoint, 0755); err != nil {
+				return &volume.MountResponse{}, logError(err.Error())
+			}
+		} else if err != nil {
+			return &volume.MountResponse{}, logError(err.Error())
+		}
+
+		if fi != nil && !fi.IsDir() {
+			return &volume.MountResponse{}, logError("%v already exist and it's not a directory", v.Mountpoint)
+		}
+
 		cmd := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
 		if v.AccessKey != "" {
 			cmd.Args = append(cmd.Args, "--accesskey="+v.AccessKey)

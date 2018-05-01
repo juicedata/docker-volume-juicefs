@@ -9,7 +9,7 @@ clean:
 
 rootfs:
 	@echo "### docker build: rootfs image with docker-volume-juicefs"
-	@docker build -q -t ${PLUGIN_NAME}:rootfs .
+	@docker build -t ${PLUGIN_NAME}:rootfs .
 	@echo "### create rootfs directory in ./plugin/rootfs"
 	@mkdir -p ./plugin/rootfs
 	@docker create --name tmp ${PLUGIN_NAME}:rootfs

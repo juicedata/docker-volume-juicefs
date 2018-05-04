@@ -1,6 +1,7 @@
 sudo: required
 services:
 - docker
+language: go
 env:
   global:
   - JFS_VOL=ci-aliyun
@@ -10,5 +11,5 @@ env:
   - ACCESS_KEY=LTAIuMUtaPvNdPPV
   # SECRET_KEY
   - secure: llRjhzYMD/z6m3r8rMqSupwEf5eOe9Noh6W2ELO9p2Hj7nDFLZn4/KlevrNBjGgPtcOeKAUKBmkS4QHe/aE0JbvQP6VpM1Qt+73yGLBpRu6hKaWa/asEjduUaRUA8axWa69/tyJ3iOLMjAfo7FdJ0mm/sJ5qJnBKd/pNbHdEnIrF31UoyZR2JcBtOvXVVhZPyffDqUXrufPj7T/k4SCIYyVH6E/z4DqUWMfaFeIDkwo2S5Bd8mbQq2mirM78CPdjtCQB9IhioFB1w4KUnCgtN4VwTgqqdXKxJ1d/tHlDXLtrOY4wnFPxvzIp6KUzQI+6WRVE8Mf3Th76sWb0ExB8YhxW/whtbhiDaASqiGwbeqW9xTbIouRjoplIY0Khdbh0m5ujopbu/C+GMYSEM9uplHjOgn/g2y4vqISpGAr0F7er5upqnAUJBPLXOKJt+6V+5BMK+2x5/sCYfLy+xH2KgpiS4xDa8nJvYMxs15h3epkqdpJcslIqAyzkqSC5SGegSLuHMmY2IzLa2QsTO75YGr0dDKP4O/XbUOs+tkizVJBGASCD6LY6FDOnlx4aUq3RAYf4v+DFq3AiVzPlyabujVz8pOTlBj5xfvrDUKBPSEd6SKZVvlCHdZiGWGk2G/C4mo7rG4YF8WM7Bpj6sJ0dXridhPNJ4rTSD5W7sB5soNI=
-scripts:
+script:
 - test/integration.sh

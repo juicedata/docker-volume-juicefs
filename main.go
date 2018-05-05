@@ -104,7 +104,14 @@ func mountVolume(v *jfsVolume) error {
 		return logError(err.Error())
 	}
 
-	return nil
+	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
+	for attemp := 0; attemp < 3; attemp++ {
+		if err := touch.Run(); err == nil {
+			return nil
+		}
+		logrus.Debugf("attemp %d, %s", attemp, err.Error())
+	}
+	return logError(err.Error())
 }
 
 func umountVolume(v *jfsVolume) error {

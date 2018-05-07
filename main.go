@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/docker/go-plugins-helpers/volume"
 	"github.com/sirupsen/logrus"
@@ -106,10 +108,19 @@ func mountVolume(v *jfsVolume) error {
 
 	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	for attemp := 0; attemp < 3; attemp++ {
-		if err := touch.Run(); err == nil {
-			return nil
+		if fileinfo, err := os.Lstat(v.Mountpoint); err == nil {
+			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+			if !ok {
+				return logError("Not a syscall.Stat_t")
+			}
+			if stat.Ino == 1 {
+				if err := touch.Run(); err == nil {
+					return nil
+				}
+			}
 		}
-		logrus.Debugf("attemp %d, %s", attemp, err.Error())
+		logrus.Debugf("Error in attemp %d: %#v", attemp+1, err)
+		time.Sleep(time.Second)
 	}
 	return logError(err.Error())
 }

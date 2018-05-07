@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/docker/go-plugins-helpers/volume"
 	"github.com/sirupsen/logrus"
 )
-
-// TODO(yujunz) load state from juicefs configuration in ~/.juicefs
 
 const socketAddress = "/run/docker/plugins/jfs.sock"
 
@@ -74,6 +74,66 @@ func (d *jfsDriver) saveState() {
 	}
 }
 
+func mountVolume(v *jfsVolume) error {
+	fi, err := os.Lstat(v.Mountpoint)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(v.Mountpoint, 0755); err != nil {
+			return logError(err.Error())
+		}
+	} else if err != nil {
+		return logError(err.Error())
+	}
+
+	if fi != nil && !fi.IsDir() {
+		return logError("%v already exist and it's not a directory", v.Mountpoint)
+	}
+
+	auth := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
+	if v.AccessKey != "" {
+		auth.Args = append(auth.Args, "--accesskey="+v.AccessKey)
+	}
+	if v.SecretKey != "" {
+		auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
+	}
+	logrus.Debug(auth)
+	if err := auth.Run(); err != nil {
+		return logError(err.Error())
+	}
+
+	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
+	logrus.Debug(mount)
+	if err := mount.Run(); err != nil {
+		return logError(err.Error())
+	}
+
+	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
+	for attemp := 0; attemp < 3; attemp++ {
+		if fileinfo, err := os.Lstat(v.Mountpoint); err == nil {
+			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+			if !ok {
+				return logError("Not a syscall.Stat_t")
+			}
+			if stat.Ino == 1 {
+				if err := touch.Run(); err == nil {
+					return nil
+				}
+			}
+		}
+		logrus.Debugf("Error in attemp %d: %#v", attemp+1, err)
+		time.Sleep(time.Second)
+	}
+	return logError(err.Error())
+}
+
+func umountVolume(v *jfsVolume) error {
+	cmd := exec.Command("umount", v.Mountpoint)
+	logrus.Debug(cmd)
+	if err := cmd.Run(); err != nil {
+		return logError(err.Error())
+	}
+	return nil
+}
+
 func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	logrus.WithField("method", "create").Debugf("%#v", r)
 
@@ -107,8 +167,14 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 
 	v.Mountpoint = filepath.Join(d.root, v.Name)
 	d.volumes[r.Name] = v
-	d.saveState()
 
+	err := mountVolume(v)
+
+	if err != nil {
+		return err
+	}
+
+	d.saveState()
 	return nil
 }
 
@@ -128,12 +194,17 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
+	if err := umountVolume(v); err != nil {
+		return err
+	}
+
 	if err := os.Remove(v.Mountpoint); err != nil {
 		return logError(err.Error())
 	}
 
 	delete(d.volumes, r.Name)
 	d.saveState()
+
 	return nil
 }
 
@@ -158,41 +229,7 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	if !ok {
 		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
 	}
-
-	if v.connections == 0 {
-		fi, err := os.Lstat(v.Mountpoint)
-		if os.IsNotExist(err) {
-			if err := os.MkdirAll(v.Mountpoint, 0755); err != nil {
-				return &volume.MountResponse{}, logError(err.Error())
-			}
-		} else if err != nil {
-			return &volume.MountResponse{}, logError(err.Error())
-		}
-
-		if fi != nil && !fi.IsDir() {
-			return &volume.MountResponse{}, logError("%v already exist and it's not a directory", v.Mountpoint)
-		}
-
-		auth := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
-		if v.AccessKey != "" {
-			auth.Args = append(auth.Args, "--accesskey="+v.AccessKey)
-		}
-		if v.SecretKey != "" {
-			auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
-		}
-		logrus.Debug(auth)
-		if err := auth.Run(); err != nil {
-			return &volume.MountResponse{}, logError(err.Error())
-		}
-
-		mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
-		if err := mount.Run(); err != nil {
-			return &volume.MountResponse{}, logError(err.Error())
-		}
-	}
-
 	v.connections++
-
 	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
 
@@ -205,15 +242,6 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	}
 
 	v.connections--
-
-	if v.connections <= 0 {
-		cmd := exec.Command("umount", v.Mountpoint)
-		logrus.Debug(cmd)
-		if err := cmd.Run(); err != nil {
-			return logError(err.Error())
-		}
-		v.connections = 0
-	}
 	return nil
 }
 

@@ -38,6 +38,26 @@ docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TO
 docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
+### Docker swarm
+
+Install juicedata/juicefs plugin on **every** worker node, otherwise service mounting JuiceFS volume will not be scheduled.
+
+Use `docker service` to deploy to Docker swarm
+
+``` shell
+docker service create --name nginx --mount \
+type=volume,volume-driver=juicedata/juicefs,source=jfsvolume,destination=/jfs,\
+volume-opt=name=$JFS_VOL,volume-opt=token=$JFS_TOKEN,volume-opt=accesskey=$ACCESS_KEY,volume-opt=secretkey=$SECRET_KEY nginx:alpine
+```
+
+Scale up
+
+``` shell
+docker service scale nginx=3
+```
+
+Deployment from docker compose file is not supported because there is no way to pass volume options.
+
 ## Debug
 
 Enable debug information

@@ -25,7 +25,7 @@ type jfsVolume struct {
 	AccessKey string
 	SecretKey string
 
-	Options []string
+	Options map[string]string
 
 	Mountpoint  string
 	connections int
@@ -95,6 +95,14 @@ func mountVolume(v *jfsVolume) error {
 	if v.SecretKey != "" {
 		auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
 	}
+	// possible options for `juicefs auth`
+	candidates := []string{"bucket", "bucket2", "accesskey2", "secretkey2", "passphrase"}
+	for _, candidate := range candidates {
+		val, ok := v.Options[candidate]
+		if ok && val != "" {
+			auth.Args = append(auth.Args, "--"+candidate+"="+val)
+		}
+	}
 	logrus.Debug(auth)
 	if err := auth.Run(); err != nil {
 		return logError(err.Error())
@@ -140,7 +148,9 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	d.Lock()
 	defer d.Unlock()
 
-	v := &jfsVolume{}
+	v := &jfsVolume{
+		Options: map[string]string{},
+	}
 
 	for key, val := range r.Options {
 		switch key {
@@ -153,11 +163,7 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		case "secretkey":
 			v.SecretKey = val
 		default:
-			if val != "" {
-				v.Options = append(v.Options, key+"="+val)
-			} else {
-				v.Options = append(v.Options, key)
-			}
+			v.Options[key] = val
 		}
 	}
 

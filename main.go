@@ -19,14 +19,8 @@ import (
 const socketAddress = "/run/docker/plugins/jfs.sock"
 
 type jfsVolume struct {
-	Name  string
-	Token string
-
-	AccessKey string
-	SecretKey string
-
-	Options map[string]string
-
+	Name        string
+	Options     map[string]string
 	Mountpoint  string
 	connections int
 }
@@ -88,12 +82,33 @@ func mountVolume(v *jfsVolume) error {
 		return logError("%v already exist and it's not a directory", v.Mountpoint)
 	}
 
-	auth := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
-	if v.AccessKey != "" {
-		auth.Args = append(auth.Args, "--accesskey="+v.AccessKey)
+	options := map[string]string{}
+	for k, v := range v.Options {
+		options[k] = v
 	}
-	if v.SecretKey != "" {
-		auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
+	// possible options for `juicefs auth`
+	auth := exec.Command("juicefs", "auth", v.Name)
+	authOptions := []string{
+		"token",
+		"accesskey",
+		"accesskey2",
+		"bucket",
+		"bucket2",
+		"secretkey",
+		"secretkey2",
+		"passphrase",
+	}
+	for _, authOption := range authOptions {
+		val, ok := options[authOption]
+		if !ok {
+			continue
+		}
+		if val != "" {
+			auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
+		} else {
+			auth.Args = append(auth.Args, fmt.Sprintf("--%s", authOption))
+		}
+		delete(options, authOption)
 	}
 	// possible options for `juicefs auth`
 	candidates := []string{"bucket", "bucket2", "accesskey2", "secretkey2", "passphrase"}
@@ -108,7 +123,15 @@ func mountVolume(v *jfsVolume) error {
 		return logError(err.Error())
 	}
 
+	// options left for `juicefs mount`
 	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
+	for mountOption, val := range options {
+		if val != "" {
+			mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
+		} else {
+			mount.Args = append(mount.Args, fmt.Sprintf("--%s", mountOption))
+		}
+	}
 	logrus.Debug(mount)
 	if err := mount.Run(); err != nil {
 		return logError(err.Error())
@@ -156,12 +179,6 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		switch key {
 		case "name":
 			v.Name = val
-		case "token":
-			v.Token = val
-		case "accesskey":
-			v.AccessKey = val
-		case "secretkey":
-			v.SecretKey = val
 		default:
 			v.Options[key] = val
 		}
@@ -175,7 +192,6 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	d.volumes[r.Name] = v
 
 	err := mountVolume(v)
-
 	if err != nil {
 		return err
 	}

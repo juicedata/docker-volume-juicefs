@@ -19,14 +19,8 @@ import (
 const socketAddress = "/run/docker/plugins/jfs.sock"
 
 type jfsVolume struct {
-	Name  string
-	Token string
-
-	AccessKey string
-	SecretKey string
-
-	Options []string
-
+	Name        string
+	Options     map[string]string
 	Mountpoint  string
 	connections int
 }
@@ -88,19 +82,63 @@ func mountVolume(v *jfsVolume) error {
 		return logError("%v already exist and it's not a directory", v.Mountpoint)
 	}
 
-	auth := exec.Command("juicefs", "auth", v.Name, "--token="+v.Token)
-	if v.AccessKey != "" {
-		auth.Args = append(auth.Args, "--accesskey="+v.AccessKey)
+	// copy option map
+	options := map[string]string{}
+	for k, v := range v.Options {
+		options[k] = v
 	}
-	if v.SecretKey != "" {
-		auth.Args = append(auth.Args, "--secretkey="+v.SecretKey)
+
+	// possible options for `juicefs auth`
+	auth := exec.Command("juicefs", "auth", v.Name)
+	authOptions := []string{
+		"token",
+		"accesskey",
+		"accesskey2",
+		"bucket",
+		"bucket2",
+		"secretkey",
+		"secretkey2",
+		"passphrase",
+	}
+	for _, authOption := range authOptions {
+		val, ok := options[authOption]
+		if !ok {
+			continue
+		}
+		// auth 的参数确实可以是空, 没有flag
+		auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
+		delete(options, authOption)
 	}
 	logrus.Debug(auth)
 	if err := auth.Run(); err != nil {
 		return logError(err.Error())
 	}
 
+	// options left for `juicefs mount`
 	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
+	mountFlags := []string{
+		"v",
+		"external",
+		"internal",
+		"gc",
+		"dry",
+		"flip",
+		"no-sync",
+		"allow-other",
+		"allow-root",
+		"enable-xattr",
+	}
+	for _, mountFlag := range mountFlags {
+		_, ok := options[mountFlag]
+		if !ok {
+			continue
+		}
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s", mountFlag))
+		delete(options, mountFlag)
+	}
+	for mountOption, val := range options {
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
+	}
 	logrus.Debug(mount)
 	if err := mount.Run(); err != nil {
 		return logError(err.Error())
@@ -140,24 +178,16 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	d.Lock()
 	defer d.Unlock()
 
-	v := &jfsVolume{}
+	v := &jfsVolume{
+		Options: map[string]string{},
+	}
 
 	for key, val := range r.Options {
 		switch key {
 		case "name":
 			v.Name = val
-		case "token":
-			v.Token = val
-		case "accesskey":
-			v.AccessKey = val
-		case "secretkey":
-			v.SecretKey = val
 		default:
-			if val != "" {
-				v.Options = append(v.Options, key+"="+val)
-			} else {
-				v.Options = append(v.Options, key)
-			}
+			v.Options[key] = val
 		}
 	}
 
@@ -169,7 +199,6 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	d.volumes[r.Name] = v
 
 	err := mountVolume(v)
-
 	if err != nil {
 		return err
 	}

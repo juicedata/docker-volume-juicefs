@@ -105,11 +105,8 @@ func mountVolume(v *jfsVolume) error {
 		if !ok {
 			continue
 		}
-		if val != "" {
-			auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
-		} else {
-			auth.Args = append(auth.Args, fmt.Sprintf("--%s", authOption))
-		}
+		// auth 的参数确实可以是空, 没有flag
+		auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
 		delete(options, authOption)
 	}
 	logrus.Debug(auth)
@@ -119,12 +116,28 @@ func mountVolume(v *jfsVolume) error {
 
 	// options left for `juicefs mount`
 	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
-	for mountOption, val := range options {
-		if val != "" {
-			mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
-		} else {
-			mount.Args = append(mount.Args, fmt.Sprintf("--%s", mountOption))
+	mountFlags := []string{
+		"v",
+		"external",
+		"internal",
+		"gc",
+		"dry",
+		"flip",
+		"no-sync",
+		"allow-other",
+		"allow-root",
+		"enable-xattr",
+	}
+	for _, mountFlag := range mountFlags {
+		_, ok := options[mountFlag]
+		if !ok {
+			continue
 		}
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s", mountFlag))
+		delete(options, mountFlag)
+	}
+	for mountOption, val := range options {
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
 	}
 	logrus.Debug(mount)
 	if err := mount.Run(); err != nil {

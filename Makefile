@@ -51,5 +51,4 @@ compose:
 
 push:
 	@echo "### push plugin ${PLUGIN_NAME}:${PLUGIN_TAG}"
-	docker login --username ${DOCKER_USERNAME} --password ${DOCKER_PASSWORD}
 	docker plugin push ${PLUGIN_NAME}:${PLUGIN_TAG}

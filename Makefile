@@ -1,5 +1,5 @@
 PLUGIN_NAME = juicedata/juicefs
-PLUGIN_TAG ?= next
+PLUGIN_TAG ?= latest
 
 all: clean rootfs create
 
@@ -32,7 +32,7 @@ test: enable volume compose
 
 volume:
 	@echo "### test volume create and mount"
-	docker volume create -d ${PLUGIN_NAME}:${PLUGIN_TAG} -o name=${JFS_VOL} -o token=${JFS_TOKEN} -o accesskey=${ACCESS_KEY} -o secretkey=${SECRET_KEY} jfsvolume
+	docker volume create -d ${PLUGIN_NAME}:${PLUGIN_TAG} -o name=${JFS_VOL} -o token=${JFS_TOKEN} -o accesskey=${JFS_ACCESSKEY} -o secretkey=${JFS_SECRETKEY} jfsvolume
 
 	docker run --rm -v jfsvolume:/write busybox sh -c "echo hello > /write/world"
 	docker run --rm -v jfsvolume:/read busybox sh -c "grep -Fxq hello /read/world"

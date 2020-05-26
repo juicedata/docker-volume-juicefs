@@ -7,9 +7,9 @@ services:
       - jfsvolume:/jfs
 volumes:
   jfsvolume:
-    driver: juicedata/juicefs
+    driver: juicedata/juicefs:latest
     driver_opts:
       name: ${JFS_VOL}
       token: ${JFS_TOKEN}
-      accesskey: ${ACCESS_KEY}
-      secretkey: ${SECRET_KEY}
+      accesskey: ${JFS_ACCESSKEY}
+      secretkey: ${JFS_SECRETKEY}

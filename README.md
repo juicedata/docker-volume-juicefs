@@ -14,7 +14,7 @@ Plugin "juicedata/juicefs" is requesting the following privileges:
  - capabilities: [CAP_SYS_ADMIN]
 Do you grant the above permissions? [y/N]
 
-$ docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$ACCESS_KEY -o secretkey=$SECRET_KEY jfsvolume
+$ docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
 $ docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
@@ -36,7 +36,7 @@ rsync -avz --exclude plugin --exclude .git --exclude .vagrant /vagrant/ $WORKDIR
 cd $WORKDIR
 make
 make enable
-docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$ACCESS_KEY -o secretkey=$SECRET_KEY jfsvolume
+docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
 docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
@@ -49,7 +49,7 @@ Use `docker service` to deploy to Docker swarm
 ``` shell
 docker service create --name nginx --mount \
 type=volume,volume-driver=juicedata/juicefs,source=jfsvolume,destination=/jfs,\
-volume-opt=name=$JFS_VOL,volume-opt=token=$JFS_TOKEN,volume-opt=accesskey=$ACCESS_KEY,volume-opt=secretkey=$SECRET_KEY nginx:alpine
+volume-opt=name=$JFS_VOL,volume-opt=token=$JFS_TOKEN,volume-opt=accesskey=$JFS_ACCESSKEY,volume-opt=secretkey=$JFS_SECRETKEY nginx:alpine
 ```
 
 Scale up

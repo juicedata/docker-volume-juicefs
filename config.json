@@ -1,5 +1,5 @@
 {
-    "description": "juicefs plugin for Docker",
+    "description": "JuiceFS plugin for Docker",
     "documentation": "https://github.com/juicedata/docker-volume-juicefs",
     "entrypoint": [
         "/docker-volume-juicefs"

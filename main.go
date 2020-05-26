@@ -117,7 +117,6 @@ func mountVolume(v *jfsVolume) error {
 	// options left for `juicefs mount`
 	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
 	mountFlags := []string{
-		"v",
 		"external",
 		"internal",
 		"gc",
@@ -145,7 +144,7 @@ func mountVolume(v *jfsVolume) error {
 	}
 
 	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
-	for attemp := 0; attemp < 3; attemp++ {
+	for attempt := 0; attempt < 3; attempt++ {
 		if fileinfo, err := os.Lstat(v.Mountpoint); err == nil {
 			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
 			if !ok {
@@ -157,7 +156,7 @@ func mountVolume(v *jfsVolume) error {
 				}
 			}
 		}
-		logrus.Debugf("Error in attemp %d: %#v", attemp+1, err)
+		logrus.Debugf("Error in attempt %d: %#v", attempt+1, err)
 		time.Sleep(time.Second)
 	}
 	return logError(err.Error())

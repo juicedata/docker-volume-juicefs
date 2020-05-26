@@ -28,11 +28,15 @@ enable:
 	@echo "### enable plugin ${PLUGIN_NAME}:${PLUGIN_TAG}"		
 	docker plugin enable ${PLUGIN_NAME}:${PLUGIN_TAG}
 
-test: enable volume compose
+disable:
+	@echo "### disable plugin ${PLUGIN_NAME}:${PLUGIN_TAG}"
+	docker plugin disable ${PLUGIN_NAME}:${PLUGIN_TAG}
+
+test: enable volume compose disable
 
 volume:
 	@echo "### test volume create and mount"
-	docker volume create -d ${PLUGIN_NAME}:${PLUGIN_TAG} -o name=${JFS_VOL} -o token=${JFS_TOKEN} -o accesskey=${JFS_ACCESSKEY} -o secretkey=${JFS_SECRETKEY} jfsvolume
+	docker volume create -d ${PLUGIN_NAME}:${PLUGIN_TAG} -o name=${JFS_VOL} -o token=${JFS_TOKEN} -o accesskey=${JFS_ACCESSKEY} -o secretkey=${JFS_SECRETKEY} -o subdir=${JFS_SUBDIR} jfsvolume
 
 	docker run --rm -v jfsvolume:/write busybox sh -c "echo hello > /write/world"
 	docker run --rm -v jfsvolume:/read busybox sh -c "grep -Fxq hello /read/world"

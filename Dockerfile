@@ -1,4 +1,4 @@
-FROM golang:1.9-alpine as builder
+FROM golang:1.14-alpine as builder
 COPY . /go/src/github.com/juicedata/docker-volume-juicefs
 WORKDIR /go/src/github.com/juicedata/docker-volume-juicefs
 RUN set -ex \

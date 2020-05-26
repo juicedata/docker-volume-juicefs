@@ -5,6 +5,7 @@ language: go
 env:
   global:
   - JFS_VOL=sandbox
+  - JFS_SUBDIR=/docker-volume-juicefs
   # JFS_TOKEN
   - secure: "tqks/IoczZhnMeuTyFz5sy/aIVnZ7JkDN/L93XMVAv/Vmogp0uRoxuXQis7tTx5CrVx17t+WV87lJltE1Q6+/urwRrJtgvNjLmRV2o9HD/Qq8h7uL3ASn78f+YIsRhr74GIWzL4dZD9PDEEB3js+ylgJR501ST+BqoaOu4rFY8bqs6StJtZbN+X8ItWK8Op7zmEJnvTD+opEWV+Eh3XjwLvpZrnPNTeTYfAeequqklNXi8ANp+kd0XAe4tc+nynQKxkB8LdvqYBaLyMWQD85IjGtfubD49HWASKc2RnZ6ns5dq6Lt0a5RnfcCOdP1eXtMA/BdfWV63Lw0iZQNb7MNH7fjri+lTeAo5yQZQ+QVlT1glEuFoedGsA4j6sVlKWCXt49PJhlmJkk3pX+wzfy97dLpdhp5Nlyf0aWfNl7tTLRu6FZcptqMztlVsn7nEOY60fhRk1+I/Bbm7T2lft1nCvwdqOOqJbA+vRfYs5wh1TpYQ6qELaHEbAPyD4v6GnbiInW4qyFaGOMiG87S17h4NSLNP9V4vrGVv4ExFJUBLPdvEt1cfqg2RVLrmJAk95FJv5M9gLXEWozMVd1/yqF5f/aE0qRl4DgXqyTPRI1GJ1imGLnb4HCZUW7mmyRljF0rC3RO8oQ2QnoiBvhNcIJli0TDOgKetpeVCTY0Gnpayw="
   # JFS_ACCESSKEY
@@ -16,4 +17,5 @@ env:
   - secure: "N1JYDBazMRija+0OPKvYXNKbviD/YNgwFosxwtV7jobF1/cag/QLJPorvQiILiXPSqGquzy8bLqk0uM+H35+aRCRgk5j0aFvOf5gNE2uicnieyMAnhRDX6vbQdo9xwZk+1UtVDGsJ9ltrONWcvS03oT/ItybjZ+Ul2tn2dDaarBDhbmTlDTyjviSBUD3Wzjx3a2J8gUsYSBr4GFA2gSYoIvmI1hELS+m7wMp5wpUYFlMngEY7ATnMyjhKfNqRXEYIRtN4sMr04VRbUAvDOzBDWeX14l1fbfv8wfFc9EbU8T16WI0OlftRnycAXfxVQvBa60PSZU7LQgm290X3AMfgI9wCVh0vFU7nlnomgIjr3bvMsKGAV8pD74l4IiEI6cm5duZJo9yrSRhZd9Im8JztRFF+dQ7vmc7Jmx6oxdWNEQHjCH7CywOot6XhJFs9Cp4q2yqZm51TZZGUPPCyqEaTMNoIyo8X+r9CQ8hyBh1T+tFvvNaNLvbnniiUWx0Uo6C9fIu8wBY7qido+ZCFd15EiGtKe9KLzGErzma2dqy+J4oVoj+mgdXq+f4ioSt7NP3TU3qbrSzqKMEUPdgn8jqzMm8UBnXa5Ez9jvuAQyuUGgqATDsU6eUB4IMZ92QOT+073MH2nQNr5/EbtLZgRCOtJ6aeuDLI1CwFXU4rVTjtHM="
   - PLUGIN_TAG=latest
 script:
-  - make && make test
+  - make
+  - make test

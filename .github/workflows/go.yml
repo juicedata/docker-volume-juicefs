@@ -2,7 +2,8 @@ name: Go
 on:
   push:
     branches: 
-      - *
+    - support-ce
+
 jobs:
   make:
     name: Build

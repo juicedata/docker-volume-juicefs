@@ -5,12 +5,12 @@ ARG GOPROXY
 WORKDIR /docker-volume-juicefs
 COPY . .
 ENV GOPROXY=${GOPROXY:-"https://proxy.golang.org,direct"}
-RUN apt-get update && apt-get install -y curl musl-tools && \
+RUN apt-get update && apt-get install -y curl musl-tools upx-ucl && \
     CC=/usr/bin/musl-gcc go build -o bin/docker-volume-juicefs --ldflags '-linkmode external -extldflags "-static"' .
 
 WORKDIR /workspace
 RUN git clone --depth=1 https://github.com/juicedata/juicefs && \
-    cd juicefs && STATIC=1 make
+    cd juicefs && STATIC=1 make && upx juicefs
 
 RUN curl -fsSL -o /juicefs https://s.juicefs.com/static/juicefs \
     && chmod +x /juicefs

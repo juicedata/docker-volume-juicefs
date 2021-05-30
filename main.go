@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -16,11 +17,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const socketAddress = "/run/docker/plugins/jfs.sock"
+const (
+	socketAddress = "/run/docker/plugins/jfs.sock"
+	cliPath       = "/usr/bin/juicefs"
+	ceCliPath     = "/bin/juicefs"
+)
 
 type jfsVolume struct {
 	Name        string
 	Options     map[string]string
+	Source      string
 	Mountpoint  string
 	connections int
 }
@@ -68,20 +74,88 @@ func (d *jfsDriver) saveState() {
 	}
 }
 
-func mountVolume(v *jfsVolume) error {
-	fi, err := os.Lstat(v.Mountpoint)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(v.Mountpoint, 0755); err != nil {
-			return logError(err.Error())
+func ceMount(v *jfsVolume) error {
+	// copy option map
+	options := map[string]string{}
+	for k, v := range v.Options {
+		options[k] = v
+	}
+
+	// possible options for `juicefs format`
+	format := exec.Command(ceCliPath, "format", "--no-update")
+	formatOptions := []string{
+		"block-size",
+		"compress",
+		"shards",
+		"storage",
+		"bucket",
+		"access-key",
+		"secret-key",
+		"encrypt-rsa-key",
+	}
+	for _, formatOption := range formatOptions {
+		val, ok := options[formatOption]
+		if !ok {
+			continue
 		}
-	} else if err != nil {
+		format.Args = append(format.Args, fmt.Sprintf("--%s=%s", formatOption, val))
+		delete(options, formatOption)
+	}
+	format.Args = append(format.Args, v.Source, v.Name)
+	logrus.Debug(format)
+	if err := format.Run(); err != nil {
 		return logError(err.Error())
 	}
 
-	if fi != nil && !fi.IsDir() {
-		return logError("%v already exist and it's not a directory", v.Mountpoint)
+	// options left for `juicefs mount`
+	mount := exec.Command(ceCliPath, "mount")
+	mountFlags := []string{
+		"cache-partial-only",
+		"enable-xattr",
+		"no-syslog",
+		"no-usage-report",
+		"writeback",
 	}
+	for _, mountFlag := range mountFlags {
+		_, ok := options[mountFlag]
+		if !ok {
+			continue
+		}
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s", mountFlag))
+		delete(options, mountFlag)
+	}
+	for mountOption, val := range options {
+		mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
+	}
+	mount.Args = append(mount.Args, v.Source, v.Mountpoint)
+	logrus.Debug(mount)
+	go func() {
+		output, _ := mount.CombinedOutput()
+		logrus.Debug(output)
+	}()
 
+	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
+	var fileinfo os.FileInfo
+	var err error
+	for attempt := 0; attempt < 10; attempt++ {
+		if fileinfo, err = os.Lstat(v.Mountpoint); err == nil {
+			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+			if !ok {
+				return logError("Not a syscall.Stat_t")
+			}
+			if stat.Ino == 1 {
+				if err = touch.Run(); err == nil {
+					return nil
+				}
+			}
+		}
+		logrus.Debugf("Error in attempt %d: %#v", attempt+1, err)
+		time.Sleep(time.Second)
+	}
+	return logError(err.Error())
+}
+
+func eeMount(v *jfsVolume) error {
 	// copy option map
 	options := map[string]string{}
 	for k, v := range v.Options {
@@ -89,7 +163,7 @@ func mountVolume(v *jfsVolume) error {
 	}
 
 	// possible options for `juicefs auth`
-	auth := exec.Command("juicefs", "auth", v.Name)
+	auth := exec.Command(cliPath, "auth", v.Name)
 	authOptions := []string{
 		"token",
 		"accesskey",
@@ -115,7 +189,7 @@ func mountVolume(v *jfsVolume) error {
 	}
 
 	// options left for `juicefs mount`
-	mount := exec.Command("juicefs", "mount", v.Name, v.Mountpoint)
+	mount := exec.Command(cliPath, "mount", v.Name, v.Mountpoint)
 	mountFlags := []string{
 		"external",
 		"internal",
@@ -144,14 +218,16 @@ func mountVolume(v *jfsVolume) error {
 	}
 
 	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
+	var fileinfo os.FileInfo
+	var err error
 	for attempt := 0; attempt < 3; attempt++ {
-		if fileinfo, err := os.Lstat(v.Mountpoint); err == nil {
+		if fileinfo, err = os.Lstat(v.Mountpoint); err == nil {
 			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
 			if !ok {
 				return logError("Not a syscall.Stat_t")
 			}
 			if stat.Ino == 1 {
-				if err := touch.Run(); err == nil {
+				if err = touch.Run(); err == nil {
 					return nil
 				}
 			}
@@ -160,6 +236,26 @@ func mountVolume(v *jfsVolume) error {
 		time.Sleep(time.Second)
 	}
 	return logError(err.Error())
+}
+
+func mountVolume(v *jfsVolume) error {
+	fi, err := os.Lstat(v.Mountpoint)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(v.Mountpoint, 0755); err != nil {
+			return logError(err.Error())
+		}
+	} else if err != nil {
+		return logError(err.Error())
+	}
+
+	if fi != nil && !fi.IsDir() {
+		return logError("%v already exist and it's not a directory", v.Mountpoint)
+	}
+
+	if !strings.Contains(v.Source, "://") {
+		return eeMount(v)
+	}
+	return ceMount(v)
 }
 
 func umountVolume(v *jfsVolume) error {
@@ -185,6 +281,12 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		switch key {
 		case "name":
 			v.Name = val
+		case "metaurl":
+			v.Source = val
+			if !strings.Contains(v.Source, "://") {
+				// Default scheme of meta URL is redis://
+				v.Source = "redis://" + v.Source
+			}
 		default:
 			v.Options[key] = val
 		}
@@ -192,6 +294,9 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 
 	if v.Name == "" {
 		return logError("'name' option required")
+	}
+	if v.Source == "" {
+		v.Source = v.Name
 	}
 
 	v.Mountpoint = filepath.Join(d.root, v.Name)

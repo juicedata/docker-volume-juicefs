@@ -1,21 +1,24 @@
-FROM golang:1.14-alpine as builder
-COPY . /go/src/github.com/juicedata/docker-volume-juicefs
-WORKDIR /go/src/github.com/juicedata/docker-volume-juicefs
-RUN set -ex \
-    && apk add --no-cache --virtual .build-deps \
-    gcc libc-dev wget\
-    && go install --ldflags '-extldflags "-static"' \
-    && apk del .build-deps
-WORKDIR /
-RUN wget -q juicefs.io/static/juicefs \
-    && chmod +x juicefs
-CMD ["/go/bin/docker-volume-juicefs"]
+FROM golang:1.14 as builder
+
+ARG GOPROXY
+
+WORKDIR /docker-volume-juicefs
+COPY . .
+ENV GOPROXY=${GOPROXY:-"https://proxy.golang.org,direct"}
+RUN apt-get update && apt-get install -y curl musl-tools && \
+    CC=/usr/bin/musl-gcc go build -o bin/docker-volume-juicefs --ldflags '-linkmode external -extldflags "-static"' .
+
+WORKDIR /workspace
+RUN git clone --depth=1 https://github.com/juicedata/juicefs && \
+    cd juicefs && STATIC=1 make
+
+RUN curl -fsSL -o /juicefs https://s.juicefs.com/static/juicefs \
+    && chmod +x /juicefs
 
 FROM jfloff/alpine-python:2.7-slim
 RUN mkdir -p /run/docker/plugins /jfs/state /jfs/volumes
-COPY --from=builder /go/bin/docker-volume-juicefs .
-COPY --from=builder /juicefs /usr/local/bin/
-RUN juicefs version
-# Workaround for case insensitive file system on macOS
-RUN rm -rf /usr/share/terminfo
+COPY --from=builder /docker-volume-juicefs/bin/docker-volume-juicefs /
+COPY --from=builder /workspace/juicefs/juicefs /bin/
+COPY --from=builder /juicefs /usr/bin/
+RUN /usr/bin/juicefs version && /bin/juicefs --version
 CMD ["docker-volume-juicefs"]

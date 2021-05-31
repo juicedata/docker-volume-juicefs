@@ -1,3 +1,5 @@
 docker-volume-juicefs
 .envrc
+.idea
 plugin
+bin

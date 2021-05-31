@@ -14,7 +14,12 @@ Plugin "juicedata/juicefs" is requesting the following privileges:
  - capabilities: [CAP_SYS_ADMIN]
 Do you grant the above permissions? [y/N]
 
-$ docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
+# JuiceFS open sourced version
+$ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL -o access-key=$JFS_ACCESSKEY -o secret-key=JFS_SECRETKEY jfsvolume
+$ docker run -it -v jfsvolume:/opt busybox ls /opt
+
+# JuiceFS hosted version
+$ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
 $ docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 

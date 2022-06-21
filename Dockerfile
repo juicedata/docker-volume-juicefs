@@ -21,7 +21,7 @@ RUN curl -fsSL -o juicefs-${JUICEFS_CE_VERSION}.tar.gz \
 RUN curl -fsSL -o /juicefs https://s.juicefs.com/static/juicefs \
     && chmod +x /juicefs
 
-FROM jfloff/alpine-python:2.7-slim
+FROM python:2.7-alpine
 RUN mkdir -p /run/docker/plugins /jfs/state /jfs/volumes
 COPY --from=builder /docker-volume-juicefs/bin/docker-volume-juicefs /
 COPY --from=builder /workspace/juicefs/juicefs /bin/

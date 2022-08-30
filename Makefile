@@ -25,8 +25,8 @@ create:
 	@echo "### create new plugin ${PLUGIN_NAME}:${PLUGIN_TAG} from ./plugin"
 	@docker plugin create ${PLUGIN_NAME}:${PLUGIN_TAG} ./plugin
 
-enable:		
-	@echo "### enable plugin ${PLUGIN_NAME}:${PLUGIN_TAG}"		
+enable:
+	@echo "### enable plugin ${PLUGIN_NAME}:${PLUGIN_TAG}"
 	docker plugin enable ${PLUGIN_NAME}:${PLUGIN_TAG}
 
 disable:

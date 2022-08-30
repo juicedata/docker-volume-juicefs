@@ -3,3 +3,4 @@ docker-volume-juicefs
 .idea
 plugin
 bin
+.vagrant

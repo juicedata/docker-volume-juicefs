@@ -103,7 +103,8 @@ func ceMount(v *jfsVolume) error {
 	}
 	format.Args = append(format.Args, v.Source, v.Name)
 	logrus.Debug(format)
-	if err := format.Run(); err != nil {
+	if out, err := format.CombinedOutput(); err != nil {
+		logrus.Errorf("juicefs format error: %s", out)
 		return logError(err.Error())
 	}
 
@@ -184,7 +185,8 @@ func eeMount(v *jfsVolume) error {
 		delete(options, authOption)
 	}
 	logrus.Debug(auth)
-	if err := auth.Run(); err != nil {
+	if out, err := auth.CombinedOutput(); err != nil {
+		logrus.Errorf("juicefs auth error: %s", out)
 		return logError(err.Error())
 	}
 
@@ -213,7 +215,8 @@ func eeMount(v *jfsVolume) error {
 		mount.Args = append(mount.Args, fmt.Sprintf("--%s=%s", mountOption, val))
 	}
 	logrus.Debug(mount)
-	if err := mount.Run(); err != nil {
+	if out, err := mount.CombinedOutput(); err != nil {
+		logrus.Errorf("juicefs mount error: %s", out)
 		return logError(err.Error())
 	}
 
@@ -261,7 +264,8 @@ func mountVolume(v *jfsVolume) error {
 func umountVolume(v *jfsVolume) error {
 	cmd := exec.Command("umount", v.Mountpoint)
 	logrus.Debug(cmd)
-	if err := cmd.Run(); err != nil {
+	if out, err := cmd.CombinedOutput(); err != nil {
+		logrus.Errorf("juicefs umount error: %s", out)
 		return logError(err.Error())
 	}
 	return nil

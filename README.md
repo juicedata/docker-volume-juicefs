@@ -8,11 +8,6 @@ Modified from https://github.com/vieux/docker-volume-sshfs
 
 ``` shell
 $ docker plugin install juicedata/juicefs
-Plugin "juicedata/juicefs" is requesting the following privileges:
- - network: [host]
- - device: [/dev/fuse]
- - capabilities: [CAP_SYS_ADMIN]
-Do you grant the above permissions? [y/N]
 
 # JuiceFS open sourced version
 $ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL -o access-key=$JFS_ACCESSKEY -o secret-key=JFS_SECRETKEY jfsvolume
@@ -70,19 +65,30 @@ Deployment from docker compose file is not supported because there is no way to 
 Enable debug information
 
 ``` shell
-docker plugin set juicedata/juicefs:next DEBUG=1
+docker plugin disable juicedata/juicefs:latest
+docker plugin set juicedata/juicefs:latest DEBUG=1
+docker plugin enable juicedata/juicefs:latest
+```
+
+To quickly test out HEAD version:
+
+``` shell
+docker plugin disable juicedata/juicefs:latest
+CC=/usr/bin/musl-gcc go build -o bin/docker-volume-juicefs --ldflags '-linkmode external -extldflags "-static"' .
+mv bin/docker-volume-juicefs /var/lib/docker/plugins/3dea603741f58726d65b273d095f2bc01d1a1c8954a5498f5592041df8cdcd6c/rootfs
+docker plugin enable juicedata/juicefs:latest
 ```
 
 The stdout of the plugin is redirected to dockerd log. The entries have a `plugin=<ID>` suffix.
 
-`docker-runc`, the default docker container runtime can be used to collect juicefs log
+`runc`, the default docker container runtime can be used to collect juicefs log
 
 ``` shell
-# docker-runc --root /var/run/docker/plugins/runtime-root/plugins.moby list
+# runc --root /run/docker/plugins/runtime-root/plugins.moby list
 ID                                                                 PID         STATUS      BUNDLE
 452d2c0cf3fd45e73a93a2f2b00d03ed28dd2bc0c58669cca9d4039e8866f99f   3672        running     /run/docker/containerd/...
 
-# docker-runc --root /var/run/docker/plugins/runtime-root/plugins.moby exec 452d2c0cf3fd45e73a93a2f2b00d03ed28dd2bc0c58669cca9d4039e8866f99f cat /var/log/juicefs.log
+# runc --root /run/docker/plugins/runtime-root/plugins.moby exec 452d2c0cf3fd45e73a93a2f2b00d03ed28dd2bc0c58669cca9d4039e8866f99f cat /var/log/juicefs.log
 umount: can't unmount /jfs/volumes/ci-aliyun: Invalid argument
 Unable to connect to local syslog daemon
 2018/05/07 13:56:19.752864 <INFO>: Cache dir: /var/jfsCache/ci-aliyun limit: 1024 MB

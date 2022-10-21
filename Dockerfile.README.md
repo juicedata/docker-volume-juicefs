@@ -61,14 +61,5 @@ sudo docker plugin rm juicefs
 ```
 
 # Troubleshooting
-## Storage volumes are not used but cannot be deleted
-This may occur because the parameters set when creating the storage volume are incorrect. It is recommended to check the type of object storage, bucket name, Access Key, Secret Key, database address and other information. You can try disabling and re-enabling the juicefs volume plugin to release the failed volume, and then recreate the storage volume with the correct parameter information.
 
-## Log of the collection volume plugin
-To troubleshoot, you can open a new terminal window and execute the following command while performing the operation to view the live log information.
-
-```
-journalctl -f -u docker | grep "plugin="
-```
-
-To learn more about the JuiceFS volume plugin, you can visit the [juicedata/docker-volume-juicefs](https://github.com/juicedata/docker-volume-juicefs) code repository.
+Please refer to [troubleshooting](https://www.juicefs.com/docs/community/juicefs_on_docker/#troubleshooting).

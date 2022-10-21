@@ -4,7 +4,7 @@
 - **Repository**:
     [juicedata/docker-volume-juicefs](https://github.com/juicedata/docker-volume-juicefs)
 - **Where to get help**:
-   [Documents](https://www.juicefs.com/docs/community/juicefs_on_docker#docker-volume-plugin) [the JuiceFS Community Slack](https://join.slack.com/t/juicefs/shared_invite/zt-n9h5qdxh-YD7e0JxWdesSEa9vY_f_DA), [Server Fault](https://serverfault.com/help/on-topic), [Unix & Linux](https://unix.stackexchange.com/help/on-topic), or [Stack Overflow](https://stackoverflow.com/help/on-topic)
+   [Documents](https://www.juicefs.com/docs/community/juicefs_on_docker#docker-volume-plugin), [the JuiceFS Community Slack](https://join.slack.com/t/juicefs/shared_invite/zt-n9h5qdxh-YD7e0JxWdesSEa9vY_f_DA), [Server Fault](https://serverfault.com/help/on-topic), [Unix & Linux](https://unix.stackexchange.com/help/on-topic), or [Stack Overflow](https://stackoverflow.com/help/on-topic)
 
 # JuiceFS Volume Plugin for Docker
 This is the JuiceFS docker volume plugin image for both the open source edition and the cloud service, which makes it easy to use JuiceFS as a high performance, massive space persistent storage for Docker containers.

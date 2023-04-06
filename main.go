@@ -75,14 +75,16 @@ func (d *jfsDriver) saveState() {
 }
 
 func ceMount(v *jfsVolume) error {
-	// copy option map
 	options := map[string]string{}
+	format := exec.Command(ceCliPath, "format", "--no-update")
 	for k, v := range v.Options {
+		if k == "env" {
+			format.Env = append(os.Environ(), strings.Split(v, ",")...)
+			logrus.Debug("modified env: %s", format.Env)
+			continue
+		}
 		options[k] = v
 	}
-
-	// possible options for `juicefs format`
-	format := exec.Command(ceCliPath, "format", "--no-update")
 	formatOptions := []string{
 		"block-size",
 		"compress",
@@ -157,14 +159,16 @@ func ceMount(v *jfsVolume) error {
 }
 
 func eeMount(v *jfsVolume) error {
-	// copy option map
+	auth := exec.Command(cliPath, "auth", v.Name)
 	options := map[string]string{}
 	for k, v := range v.Options {
+		if k == "env" {
+			auth.Env = append(os.Environ(), strings.Split(v, ",")...)
+			logrus.Debug("modified env: %s", auth.Env)
+			continue
+		}
 		options[k] = v
 	}
-
-	// possible options for `juicefs auth`
-	auth := exec.Command(cliPath, "auth", v.Name)
 	authOptions := []string{
 		"token",
 		"accesskey",

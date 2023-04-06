@@ -4,3 +4,4 @@ docker-volume-juicefs
 plugin
 bin
 .vagrant
+.DS_Store

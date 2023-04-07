@@ -7,15 +7,15 @@ Modified from https://github.com/vieux/docker-volume-sshfs
 ## Usage
 
 ``` shell
-$ docker plugin install juicedata/juicefs
+docker plugin install juicedata/juicefs
 
 # JuiceFS open sourced version
-$ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL -o access-key=$JFS_ACCESSKEY -o secret-key=JFS_SECRETKEY jfsvolume
-$ docker run -it -v jfsvolume:/opt busybox ls /opt
+docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL -o access-key=$JFS_ACCESSKEY -o secret-key=JFS_SECRETKEY jfsvolume
+docker run -it -v jfsvolume:/opt busybox ls /opt
 
 # JuiceFS hosted version
-$ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
-$ docker run -it -v jfsvolume:/opt busybox ls /opt
+docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
+docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
 ## Development

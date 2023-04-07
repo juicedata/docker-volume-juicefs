@@ -1,6 +1,6 @@
 PLUGIN_NAME = juicedata/juicefs
 PLUGIN_TAG ?= latest
-JUICEFS_CE_VERSION ?= main
+JUICEFS_CE_VERSION ?= 1.0.4
 
 all: clean rootfs create
 

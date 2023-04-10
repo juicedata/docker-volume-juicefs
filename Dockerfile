@@ -1,9 +1,9 @@
-FROM golang:1.17 as builder
+FROM golang:1.18 as builder
 
 ARG GOPROXY
 ENV GOPROXY=${GOPROXY:-"https://proxy.golang.org,direct"}
 ARG JUICEFS_CE_VERSION
-ENV JUICEFS_CE_VERSION=${JUICEFS_CE_VERSION:-"main"}
+ENV JUICEFS_CE_VERSION=${JUICEFS_CE_VERSION:-"1.0.4"}
 
 WORKDIR /docker-volume-juicefs
 COPY . .

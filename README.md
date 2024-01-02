@@ -9,12 +9,12 @@ Modified from https://github.com/vieux/docker-volume-sshfs
 ``` shell
 docker plugin install juicedata/juicefs
 
-# JuiceFS open sourced version
-docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL -o access-key=$JFS_ACCESSKEY -o secret-key=JFS_SECRETKEY jfsvolume
+# JuiceFS Community Edition
+docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o metaurl=$JFS_META_URL jfsvolume
 docker run -it -v jfsvolume:/opt busybox ls /opt
 
-# JuiceFS hosted version
-docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
+# JuiceFS Enterprise Edition
+docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_TOKEN -o access-key=$JFS_ACCESSKEY -o secret-key=$JFS_SECRETKEY jfsvolume
 docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
@@ -36,7 +36,7 @@ rsync -avz --exclude plugin --exclude .git --exclude .vagrant /vagrant/ $WORKDIR
 cd $WORKDIR
 make
 make enable
-docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o accesskey=$JFS_ACCESSKEY -o secretkey=$JFS_SECRETKEY jfsvolume
+docker volume create -d juicedata/juicefs:next -o name=$JFS_VOL -o token=$JFS_TOKEN -o access-key=$JFS_ACCESSKEY -o secret-key=$JFS_SECRETKEY jfsvolume
 docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
@@ -49,7 +49,7 @@ Use `docker service` to deploy to Docker swarm
 ``` shell
 docker service create --name nginx --mount \
 type=volume,volume-driver=juicedata/juicefs,source=jfsvolume,destination=/jfs,\
-volume-opt=name=$JFS_VOL,volume-opt=token=$JFS_TOKEN,volume-opt=accesskey=$JFS_ACCESSKEY,volume-opt=secretkey=$JFS_SECRETKEY nginx:alpine
+volume-opt=name=$JFS_VOL,volume-opt=token=$JFS_TOKEN,volume-opt=access-key=$JFS_ACCESSKEY,volume-opt=secret-key=$JFS_SECRETKEY nginx:alpine
 ```
 
 Scale up

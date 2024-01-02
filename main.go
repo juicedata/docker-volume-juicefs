@@ -173,10 +173,14 @@ func eeMount(v *jfsVolume) error {
 		"token",
 		"accesskey",
 		"accesskey2",
+		"access-key",
+		"access-key2",
 		"bucket",
 		"bucket2",
 		"secretkey",
 		"secretkey2",
+		"secret-key",
+		"secret-key2",
 		"passphrase",
 	}
 	for _, authOption := range authOptions {

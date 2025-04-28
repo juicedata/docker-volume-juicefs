@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -169,7 +170,8 @@ func eeMount(v *jfsVolume) error {
 		}
 		options[k] = v
 	}
-	authOptions := []string{
+	commonOptions := []string{"subdir"}
+	authOptions := slices.Concat([]string{
 		"token",
 		"accesskey",
 		"accesskey2",
@@ -182,7 +184,7 @@ func eeMount(v *jfsVolume) error {
 		"secret-key",
 		"secret-key2",
 		"passphrase",
-	}
+	}, commonOptions)
 	for _, authOption := range authOptions {
 		val, ok := options[authOption]
 		if !ok {
@@ -190,7 +192,9 @@ func eeMount(v *jfsVolume) error {
 		}
 		// auth 的参数确实可以是空, 没有flag
 		auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
-		delete(options, authOption)
+		if !slices.Contains(commonOptions, authOption) {
+			delete(options, authOption)
+		}
 	}
 	logrus.Debug(auth)
 	if out, err := auth.CombinedOutput(); err != nil {

@@ -280,6 +280,9 @@ func umountVolume(v *jfsVolume) error {
 		logrus.Errorf("juicefs umount error: %s", out)
 		return logError(err.Error())
 	}
+	if err := os.Remove(v.Mountpoint); err != nil {
+		return logError(err.Error())
+	}
 	return nil
 }
 
@@ -318,11 +321,6 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	v.Mountpoint = filepath.Join(d.root, v.Name)
 	d.volumes[r.Name] = v
 
-	err := mountVolume(v)
-	if err != nil {
-		return err
-	}
-
 	d.saveState()
 	return nil
 }
@@ -343,17 +341,11 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	if err := umountVolume(v); err != nil {
-		return err
-	}
-
-	if err := os.Remove(v.Mountpoint); err != nil {
-		return logError(err.Error())
-	}
+	// umount, ignore error
+	umountVolume(v)
 
 	delete(d.volumes, r.Name)
 	d.saveState()
-
 	return nil
 }
 
@@ -378,6 +370,12 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	if !ok {
 		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
 	}
+
+	err := mountVolume(v)
+	if err != nil {
+		return &volume.MountResponse{}, logError("failed to mount %s: %s", r.Name, err)
+	}
+
 	v.connections++
 	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
@@ -388,6 +386,10 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return logError("volume %s not found", r.Name)
+	}
+
+	if err := umountVolume(v); err != nil {
+		return logError("failed to umount %s: %s", r.Name, err)
 	}
 
 	v.connections--

@@ -318,7 +318,7 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		v.Source = v.Name
 	}
 
-	v.Mountpoint = filepath.Join(d.root, v.Name)
+	v.Mountpoint = filepath.Join(d.root, r.Name)
 	d.volumes[r.Name] = v
 
 	d.saveState()

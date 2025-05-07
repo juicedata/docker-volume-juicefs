@@ -341,8 +341,13 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	// umount, ignore error
-	umountVolume(v)
+	// check umount
+	err := exec.Command("sh", "-c", fmt.Sprintf("mount | grep -w '%s'", v.Mountpoint)).Run()
+	if err == nil {
+		if err = umountVolume(v); err != nil {
+			return logError("failed to umount %s: %s", r.Name, err)
+		}
+	}
 
 	delete(d.volumes, r.Name)
 	d.saveState()

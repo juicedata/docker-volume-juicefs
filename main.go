@@ -280,9 +280,6 @@ func umountVolume(v *jfsVolume) error {
 		logrus.Errorf("juicefs umount error: %s", out)
 		return logError(err.Error())
 	}
-	if err := os.Remove(v.Mountpoint); err != nil {
-		return logError(err.Error())
-	}
 	return nil
 }
 
@@ -347,6 +344,9 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		if err = umountVolume(v); err != nil {
 			return logError("failed to umount %s: %s", r.Name, err)
 		}
+	}
+	if err := os.Remove(v.Mountpoint); err != nil {
+		return logError(err.Error())
 	}
 
 	delete(d.volumes, r.Name)

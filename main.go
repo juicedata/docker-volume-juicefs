@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -169,7 +170,8 @@ func eeMount(v *jfsVolume) error {
 		}
 		options[k] = v
 	}
-	authOptions := []string{
+	commonOptions := []string{"subdir"}
+	authOptions := slices.Concat([]string{
 		"token",
 		"accesskey",
 		"accesskey2",
@@ -182,7 +184,7 @@ func eeMount(v *jfsVolume) error {
 		"secret-key",
 		"secret-key2",
 		"passphrase",
-	}
+	}, commonOptions)
 	for _, authOption := range authOptions {
 		val, ok := options[authOption]
 		if !ok {
@@ -190,7 +192,9 @@ func eeMount(v *jfsVolume) error {
 		}
 		// auth 的参数确实可以是空, 没有flag
 		auth.Args = append(auth.Args, fmt.Sprintf("--%s=%s", authOption, val))
-		delete(options, authOption)
+		if !slices.Contains(commonOptions, authOption) {
+			delete(options, authOption)
+		}
 	}
 	logrus.Debug(auth)
 	if out, err := auth.CombinedOutput(); err != nil {
@@ -311,13 +315,8 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		v.Source = v.Name
 	}
 
-	v.Mountpoint = filepath.Join(d.root, v.Name)
+	v.Mountpoint = filepath.Join(d.root, r.Name)
 	d.volumes[r.Name] = v
-
-	err := mountVolume(v)
-	if err != nil {
-		return err
-	}
 
 	d.saveState()
 	return nil
@@ -339,17 +338,12 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	if err := umountVolume(v); err != nil {
-		return err
-	}
-
 	if err := os.Remove(v.Mountpoint); err != nil {
 		return logError(err.Error())
 	}
 
 	delete(d.volumes, r.Name)
 	d.saveState()
-
 	return nil
 }
 
@@ -374,6 +368,12 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	if !ok {
 		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
 	}
+
+	err := mountVolume(v)
+	if err != nil {
+		return &volume.MountResponse{}, logError("failed to mount %s: %s", r.Name, err)
+	}
+
 	v.connections++
 	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
@@ -384,6 +384,10 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return logError("volume %s not found", r.Name)
+	}
+
+	if err := umountVolume(v); err != nil {
+		return logError("failed to umount %s: %s", r.Name, err)
 	}
 
 	v.connections--

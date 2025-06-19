@@ -135,7 +135,7 @@ func ceMount(v *jfsVolume) error {
 	logrus.Debug(mount)
 	go func() {
 		output, _ := mount.CombinedOutput()
-		logrus.Debug(output)
+		logrus.Debug(string(output))
 	}()
 
 	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")

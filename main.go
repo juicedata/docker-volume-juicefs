@@ -95,6 +95,7 @@ func ceMount(v *jfsVolume) error {
 		"access-key",
 		"secret-key",
 		"encrypt-rsa-key",
+		"trash-days",
 	}
 	for _, formatOption := range formatOptions {
 		val, ok := options[formatOption]

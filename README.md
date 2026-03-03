@@ -18,6 +18,32 @@ docker volume create -d juicedata/juicefs:latest -o name=$JFS_VOL -o token=$JFS_
 docker run -it -v jfsvolume:/opt busybox ls /opt
 ```
 
+### Raw Flags
+
+For advanced use cases or flags not directly supported by the plugin, use raw flag options to pass arguments directly to JuiceFS commands:
+
+- `formatFlags` - passed directly to `juicefs format` (CE only)
+- `authFlags` - passed directly to `juicefs auth` (EE only)
+- `mountFlags` - passed directly to `juicefs mount`
+
+``` shell
+# Example: CE with custom mount options
+docker volume create -d juicedata/juicefs:latest \
+  -o name=$JFS_VOL \
+  -o metaurl=$JFS_META_URL \
+  -o mountFlags="--all-squash 1000:1000 --cache-size 10G --no-bgjob" \
+  jfsvolume
+
+# Example: EE with custom mount options
+docker volume create -d juicedata/juicefs:latest \
+  -o name=$JFS_VOL \
+  -o token=$JFS_TOKEN \
+  -o mountFlags="--all-squash 1000:1000 --writeback" \
+  jfsvolume
+```
+
+Note: Raw flags are split by whitespace, so paths with spaces are not supported.
+
 ## Development
 
 Boot up vagrant environment

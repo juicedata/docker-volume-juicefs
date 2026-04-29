@@ -81,11 +81,18 @@ func ceMount(v *jfsVolume) error {
 	for k, v := range v.Options {
 		if k == "env" {
 			format.Env = append(os.Environ(), strings.Split(v, ",")...)
-			logrus.Debug("modified env: %s", format.Env)
+			logrus.Debugf("modified env: %s", format.Env)
 			continue
 		}
 		options[k] = v
 	}
+	// Raw formatFlags passthrough - passed directly to juicefs format
+	// Example: -o formatFlags="--compress lz4 --trash-days 0"
+	if rawFlags, ok := options["formatFlags"]; ok {
+		format.Args = append(format.Args, strings.Fields(rawFlags)...)
+		delete(options, "formatFlags")
+	}
+
 	formatOptions := []string{
 		"block-size",
 		"compress",
@@ -114,6 +121,15 @@ func ceMount(v *jfsVolume) error {
 
 	// options left for `juicefs mount`
 	mount := exec.Command(ceCliPath, "mount")
+
+	// Raw mountFlags passthrough - passed directly to juicefs mount
+	// Example: -o mountFlags="--all-squash 1000:1000 --cache-size 10G"
+	if rawFlags, ok := options["mountFlags"]; ok {
+		mount.Args = append(mount.Args, strings.Fields(rawFlags)...)
+		delete(options, "mountFlags")
+	}
+
+	// Boolean flags that need --flag format (not --flag=value)
 	mountFlags := []string{
 		"cache-partial-only",
 		"enable-xattr",
@@ -166,11 +182,18 @@ func eeMount(v *jfsVolume) error {
 	for k, v := range v.Options {
 		if k == "env" {
 			auth.Env = append(os.Environ(), strings.Split(v, ",")...)
-			logrus.Debug("modified env: %s", auth.Env)
+			logrus.Debugf("modified env: %s", auth.Env)
 			continue
 		}
 		options[k] = v
 	}
+	// Raw authFlags passthrough - passed directly to juicefs auth
+	// Example: -o authFlags="--token xxx --access-key yyy"
+	if rawFlags, ok := options["authFlags"]; ok {
+		auth.Args = append(auth.Args, strings.Fields(rawFlags)...)
+		delete(options, "authFlags")
+	}
+
 	commonOptions := []string{"subdir"}
 	authOptions := slices.Concat([]string{
 		"token",
@@ -205,6 +228,15 @@ func eeMount(v *jfsVolume) error {
 
 	// options left for `juicefs mount`
 	mount := exec.Command(cliPath, "mount", v.Name, v.Mountpoint)
+
+	// Raw mountFlags passthrough - passed directly to juicefs mount
+	// Example: -o mountFlags="--all-squash 1000:1000 --cache-size 10G"
+	if rawFlags, ok := options["mountFlags"]; ok {
+		mount.Args = append(mount.Args, strings.Fields(rawFlags)...)
+		delete(options, "mountFlags")
+	}
+
+	// Boolean flags that need --flag format (not --flag=value)
 	mountFlags := []string{
 		"external",
 		"internal",

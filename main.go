@@ -339,7 +339,7 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	if err := os.Remove(v.Mountpoint); err != nil {
+	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())
 	}
 

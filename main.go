@@ -25,11 +25,12 @@ const (
 )
 
 type jfsVolume struct {
-	Name        string
-	Options     map[string]string
-	Source      string
-	Mountpoint  string
-	connections int
+	Name           string
+	Options        map[string]string
+	Source         string
+	Mountpoint     string
+	connections    int
+	mountHealthCheck chan struct{}
 }
 
 type jfsDriver struct {
@@ -73,6 +74,46 @@ func (d *jfsDriver) saveState() {
 	if err := ioutil.WriteFile(d.statePath, data, 0600); err != nil {
 		logrus.WithField("saveState", d.statePath).Error(err)
 	}
+}
+
+func safeClose(ch chan struct{}) {
+	defer func() { recover() }()
+	if ch != nil {
+		close(ch)
+	}
+}
+
+func isFuseMount(mountpoint string) bool {
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return false
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		sepIdx := -1
+		for i, f := range fields {
+			if f == "-" {
+				sepIdx = i
+				break
+			}
+		}
+		if sepIdx == -1 || len(fields) < sepIdx+3 {
+			continue
+		}
+		mountPath := fields[4]
+		unescaped := strings.ReplaceAll(mountPath, "\\040", " ")
+		if unescaped == mountpoint {
+			fsType := fields[sepIdx+1]
+			if strings.Contains(fsType, "fuse") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ceMount(v *jfsVolume) error {
@@ -158,6 +199,7 @@ func ceMount(v *jfsVolume) error {
 	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	var fileinfo os.FileInfo
 	var err error
+	mounted := false
 	for attempt := 0; attempt < 10; attempt++ {
 		if fileinfo, err = os.Lstat(v.Mountpoint); err == nil {
 			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
@@ -166,14 +208,38 @@ func ceMount(v *jfsVolume) error {
 			}
 			if stat.Ino == 1 {
 				if err = touch.Run(); err == nil {
-					return nil
+					mounted = true
+					break
 				}
 			}
 		}
 		logrus.Debugf("Error in attempt %d: %#v", attempt+1, err)
 		time.Sleep(time.Second)
 	}
-	return logError(err.Error())
+	if err != nil || !mounted {
+		if err == nil {
+			err = fmt.Errorf("failed to verify mount after 10 attempts")
+		}
+		return logError(err.Error())
+	}
+
+	safeClose(v.mountHealthCheck)
+	v.mountHealthCheck = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if !isFuseMount(v.Mountpoint) {
+					logrus.Errorf("FUSE mount at %s is no longer active", v.Mountpoint)
+				}
+			case <-v.mountHealthCheck:
+				return
+			}
+		}
+	}()
+	return nil
 }
 
 func eeMount(v *jfsVolume) error {
@@ -371,6 +437,18 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
+	safeClose(v.mountHealthCheck)
+	v.mountHealthCheck = nil
+
+	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
+		return logError(err.Error())
+	}
+
+	delete(d.volumes, r.Name)
+	d.saveState()
+	return nil
+}
+
 	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())
 	}
@@ -422,6 +500,9 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	if err := umountVolume(v); err != nil {
 		return logError("failed to umount %s: %s", r.Name, err)
 	}
+
+	safeClose(v.mountHealthCheck)
+	v.mountHealthCheck = nil
 
 	v.connections--
 	return nil

@@ -402,6 +402,13 @@ func mountVolume(v *jfsVolume) error {
 	return ceMount(v)
 }
 
+func cleanupCache(volumeName string) {
+	cacheDir := filepath.Join("/var", "jfsCache", volumeName)
+	if err := os.RemoveAll(cacheDir); err != nil {
+		logrus.Warnf("failed to clean up cache directory %s: %v", cacheDir, err)
+	}
+}
+
 func umountVolume(v *jfsVolume) error {
 	cmd := exec.Command("umount", v.Mountpoint)
 	logrus.Debug(cmd)
@@ -479,6 +486,7 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		if err := os.RemoveAll(v.Mountpoint); err != nil {
 			return logError(err.Error())
 		}
+		cleanupCache(v.Name)
 		delete(d.volumes, r.Name)
 		d.saveState()
 		return nil
@@ -488,6 +496,7 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError(err.Error())
 	}
 
+	cleanupCache(v.Name)
 	delete(d.volumes, r.Name)
 	d.saveState()
 	return nil

@@ -83,6 +83,36 @@ func safeClose(ch chan struct{}) {
 	}
 }
 
+func isActiveMount(mountpoint string) (bool, error) {
+	data, err := os.ReadFile("/proc/self/mountinfo")
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		sepIdx := -1
+		for i, f := range fields {
+			if f == "-" {
+				sepIdx = i
+				break
+			}
+		}
+		if sepIdx == -1 || len(fields) < sepIdx+3 {
+			continue
+		}
+		mountPath := fields[4]
+		unescaped := strings.ReplaceAll(mountPath, "\\040", " ")
+		if unescaped == mountpoint {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func isFuseMount(mountpoint string) bool {
 	data, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {
@@ -440,14 +470,19 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 	safeClose(v.mountHealthCheck)
 	v.mountHealthCheck = nil
 
-	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
-		return logError(err.Error())
+	if isMounted, _ := isActiveMount(v.Mountpoint); isMounted {
+		if err := umountVolume(v); err != nil {
+			return logError("failed to unmount %s: %s", r.Name, err)
+		}
+	} else {
+		logrus.Warnf("mountpoint %s is not active, cleaning up leaked data", v.Mountpoint)
+		if err := os.RemoveAll(v.Mountpoint); err != nil {
+			return logError(err.Error())
+		}
+		delete(d.volumes, r.Name)
+		d.saveState()
+		return nil
 	}
-
-	delete(d.volumes, r.Name)
-	d.saveState()
-	return nil
-}
 
 	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())

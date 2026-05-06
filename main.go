@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -25,11 +26,14 @@ const (
 )
 
 type jfsVolume struct {
-	Name        string
-	Options     map[string]string
-	Source      string
-	Mountpoint  string
-	connections int
+	Name              string
+	Options           map[string]string
+	Source            string
+	Mountpoint        string
+	connections       int
+	healthCheckCtx    context.Context
+	healthCheckCancel context.CancelFunc
+	mu                sync.Mutex
 }
 
 type jfsDriver struct {
@@ -72,6 +76,50 @@ func (d *jfsDriver) saveState() {
 
 	if err := ioutil.WriteFile(d.statePath, data, 0600); err != nil {
 		logrus.WithField("saveState", d.statePath).Error(err)
+	}
+}
+
+func isJuicefsMounted(mountpoint string) bool {
+	fi, err := os.Lstat(mountpoint)
+	if err != nil {
+		return false
+	}
+	stat, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false
+	}
+	return stat.Ino == 1
+}
+
+func (v *jfsVolume) startHealthCheck() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.healthCheckCancel != nil {
+		v.healthCheckCancel()
+	}
+	v.healthCheckCtx, v.healthCheckCancel = context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if !isJuicefsMounted(v.Mountpoint) {
+					logrus.Errorf("JuiceFS mount at %s is no longer active", v.Mountpoint)
+				}
+			case <-v.healthCheckCtx.Done():
+				return
+			}
+		}
+	}()
+}
+
+func (v *jfsVolume) stopHealthCheck() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.healthCheckCancel != nil {
+		v.healthCheckCancel()
+		v.healthCheckCancel = nil
 	}
 }
 
@@ -155,7 +203,6 @@ func ceMount(v *jfsVolume) error {
 		logrus.Debug(string(output))
 	}()
 
-	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	var fileinfo os.FileInfo
 	var err error
 	for attempt := 0; attempt < 10; attempt++ {
@@ -165,7 +212,9 @@ func ceMount(v *jfsVolume) error {
 				return logError("Not a syscall.Stat_t")
 			}
 			if stat.Ino == 1 {
+				touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 				if err = touch.Run(); err == nil {
+					v.startHealthCheck()
 					return nil
 				}
 			}
@@ -265,7 +314,6 @@ func eeMount(v *jfsVolume) error {
 		return logError(err.Error())
 	}
 
-	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	var fileinfo os.FileInfo
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -275,7 +323,9 @@ func eeMount(v *jfsVolume) error {
 				return logError("Not a syscall.Stat_t")
 			}
 			if stat.Ino == 1 {
+				touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 				if err = touch.Run(); err == nil {
+					v.startHealthCheck()
 					return nil
 				}
 			}
@@ -397,6 +447,9 @@ func (d *jfsDriver) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logrus.WithField("method", "mount").Debugf("%#v", r)
 
+	d.Lock()
+	defer d.Unlock()
+
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
@@ -414,6 +467,9 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	logrus.WithField("method", "umount").Debugf("%#v", r)
 
+	d.Lock()
+	defer d.Unlock()
+
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return logError("volume %s not found", r.Name)
@@ -423,6 +479,7 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 		return logError("failed to umount %s: %s", r.Name, err)
 	}
 
+	v.stopHealthCheck()
 	v.connections--
 	return nil
 }

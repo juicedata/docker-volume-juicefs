@@ -25,11 +25,12 @@ const (
 )
 
 type jfsVolume struct {
-	Name        string
-	Options     map[string]string
-	Source      string
-	Mountpoint  string
-	connections int
+	Name         string
+	Options      map[string]string
+	Source       string
+	Mountpoint   string
+	CleanupCache bool
+	connections  int
 }
 
 type jfsDriver struct {
@@ -333,9 +334,10 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		case "metaurl":
 			v.Source = val
 			if !strings.Contains(v.Source, "://") {
-				// Default scheme of meta URL is redis://
 				v.Source = "redis://" + v.Source
 			}
+		case "cleanup-cache":
+			v.CleanupCache, _ = strconv.ParseBool(val)
 		default:
 			v.Options[key] = val
 		}
@@ -355,6 +357,39 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	return nil
 }
 
+func getCacheDir(v *jfsVolume) string {
+	if dir, ok := v.Options["cache-dir"]; ok && dir != "" {
+		return dir
+	}
+	if flags, ok := v.Options["mountFlags"]; ok {
+		fields := strings.Fields(flags)
+		for i, f := range fields {
+			if strings.HasPrefix(f, "--cache-dir=") {
+				return strings.TrimPrefix(f, "--cache-dir=")
+			}
+			if f == "--cache-dir" && i+1 < len(fields) {
+				return fields[i+1]
+			}
+		}
+	}
+	return filepath.Join("/var", "jfsCache", v.Name)
+}
+
+func cleanupCache(v *jfsVolume) {
+	cacheDir := getCacheDir(v)
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		return
+	}
+	if !strings.Contains(cacheDir, v.Name) {
+		logrus.Warnf("cache directory %s does not contain volume name %s, skipping cleanup", cacheDir, v.Name)
+		return
+	}
+	logrus.Infof("cleaning up cache directory %s", cacheDir)
+	if err := os.RemoveAll(cacheDir); err != nil {
+		logrus.Warnf("failed to clean up cache directory %s: %v", cacheDir, err)
+	}
+}
+
 func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 	logrus.WithField("method", "remove").Debugf("%#v", r)
 
@@ -371,8 +406,12 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())
+	}
+
+	if v.CleanupCache {
+		cleanupCache(v)
 	}
 
 	delete(d.volumes, r.Name)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -357,36 +358,70 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 	return nil
 }
 
-func getCacheDir(v *jfsVolume) string {
+func getCacheDirs(v *jfsVolume) []string {
+	cacheDir := "/var/jfsCache"
 	if dir, ok := v.Options["cache-dir"]; ok && dir != "" {
-		return dir
-	}
-	if flags, ok := v.Options["mountFlags"]; ok {
+		cacheDir = dir
+	} else if flags, ok := v.Options["mountFlags"]; ok {
 		fields := strings.Fields(flags)
 		for i, f := range fields {
 			if strings.HasPrefix(f, "--cache-dir=") {
-				return strings.TrimPrefix(f, "--cache-dir=")
+				cacheDir = strings.TrimPrefix(f, "--cache-dir=")
+				break
 			}
 			if f == "--cache-dir" && i+1 < len(fields) {
-				return fields[i+1]
+				cacheDir = fields[i+1]
+				break
 			}
 		}
 	}
-	return filepath.Join("/var", "jfsCache", v.Name)
+
+	cacheDirs := filepath.SplitList(cacheDir)
+	var dirs []string
+	for _, dir := range cacheDirs {
+		if dir != "" {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
+}
+
+func getVolumeUUID(v *jfsVolume) string {
+	out, err := exec.Command(ceCliPath, "config", v.Source).CombinedOutput()
+	if err != nil {
+		logrus.Warnf("failed to get config for volume %s: %v: %s", v.Name, err, out)
+		return ""
+	}
+
+	matchExp := regexp.MustCompile(`"UUID": "(.*)"`)
+	idStr := matchExp.FindString(string(out))
+	idStrs := strings.Split(idStr, "\"")
+	if len(idStrs) < 4 {
+		logrus.Warnf("failed to get uuid for volume %s", v.Name)
+		return ""
+	}
+	return idStrs[3]
 }
 
 func cleanupCache(v *jfsVolume) {
-	cacheDir := getCacheDir(v)
-	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+	cacheName := v.Name
+	if strings.Contains(v.Source, "://") {
+		cacheName = getVolumeUUID(v)
+	}
+	if cacheName == "" || cacheName == "." || cacheName == ".." || filepath.Base(cacheName) != cacheName {
+		logrus.Warnf("invalid cache name for volume %s, skipping cleanup", v.Name)
 		return
 	}
-	if !strings.Contains(cacheDir, v.Name) {
-		logrus.Warnf("cache directory %s does not contain volume name %s, skipping cleanup", cacheDir, v.Name)
-		return
-	}
-	logrus.Infof("cleaning up cache directory %s", cacheDir)
-	if err := os.RemoveAll(cacheDir); err != nil {
-		logrus.Warnf("failed to clean up cache directory %s: %v", cacheDir, err)
+
+	for _, cacheRoot := range getCacheDirs(v) {
+		cacheDir := filepath.Join(cacheRoot, cacheName)
+		if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+			continue
+		}
+		logrus.Infof("cleaning up cache directory %s", cacheDir)
+		if err := os.RemoveAll(cacheDir); err != nil {
+			logrus.Warnf("failed to clean up cache directory %s: %v", cacheDir, err)
+		}
 	}
 }
 
@@ -406,7 +441,7 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 		return logError("volume %s is in use", r.Name)
 	}
 
-	if err := os.RemoveAll(v.Mountpoint); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())
 	}
 

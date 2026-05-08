@@ -479,8 +479,10 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 		return logError("failed to umount %s: %s", r.Name, err)
 	}
 
-	v.stopHealthCheck()
 	v.connections--
+	if v.connections == 0 {
+		v.stopHealthCheck()
+	}
 	return nil
 }
 

@@ -157,7 +157,6 @@ func ceMount(v *jfsVolume) error {
 		logrus.Debug(string(output))
 	}()
 
-	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	var fileinfo os.FileInfo
 	var err error
 	for attempt := 0; attempt < 10; attempt++ {
@@ -167,6 +166,7 @@ func ceMount(v *jfsVolume) error {
 				return logError("Not a syscall.Stat_t")
 			}
 			if stat.Ino == 1 {
+				touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 				if err = touch.Run(); err == nil {
 					return nil
 				}
@@ -267,7 +267,6 @@ func eeMount(v *jfsVolume) error {
 		return logError(err.Error())
 	}
 
-	touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 	var fileinfo os.FileInfo
 	var err error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -277,6 +276,7 @@ func eeMount(v *jfsVolume) error {
 				return logError("Not a syscall.Stat_t")
 			}
 			if stat.Ino == 1 {
+				touch := exec.Command("touch", v.Mountpoint+"/.juicefs")
 				if err = touch.Run(); err == nil {
 					return nil
 				}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,11 +26,12 @@ const (
 )
 
 type jfsVolume struct {
-	Name        string
-	Options     map[string]string
-	Source      string
-	Mountpoint  string
-	connections int
+	Name         string
+	Options      map[string]string
+	Source       string
+	Mountpoint   string
+	CleanupCache bool
+	connections  int
 }
 
 type jfsDriver struct {
@@ -333,9 +335,10 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 		case "metaurl":
 			v.Source = val
 			if !strings.Contains(v.Source, "://") {
-				// Default scheme of meta URL is redis://
 				v.Source = "redis://" + v.Source
 			}
+		case "cleanup-cache":
+			v.CleanupCache, _ = strconv.ParseBool(val)
 		default:
 			v.Options[key] = val
 		}
@@ -353,6 +356,73 @@ func (d *jfsDriver) Create(r *volume.CreateRequest) error {
 
 	d.saveState()
 	return nil
+}
+
+func getCacheDirs(v *jfsVolume) []string {
+	cacheDir := "/var/jfsCache"
+	if dir, ok := v.Options["cache-dir"]; ok && dir != "" {
+		cacheDir = dir
+	} else if flags, ok := v.Options["mountFlags"]; ok {
+		fields := strings.Fields(flags)
+		for i, f := range fields {
+			if strings.HasPrefix(f, "--cache-dir=") {
+				cacheDir = strings.TrimPrefix(f, "--cache-dir=")
+				break
+			}
+			if f == "--cache-dir" && i+1 < len(fields) {
+				cacheDir = fields[i+1]
+				break
+			}
+		}
+	}
+
+	cacheDirs := filepath.SplitList(cacheDir)
+	var dirs []string
+	for _, dir := range cacheDirs {
+		if dir != "" {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
+}
+
+func getVolumeUUID(v *jfsVolume) string {
+	out, err := exec.Command(ceCliPath, "config", v.Source).CombinedOutput()
+	if err != nil {
+		logrus.Warnf("failed to get config for volume %s: %v: %s", v.Name, err, out)
+		return ""
+	}
+
+	matchExp := regexp.MustCompile(`"UUID": "(.*)"`)
+	idStr := matchExp.FindString(string(out))
+	idStrs := strings.Split(idStr, "\"")
+	if len(idStrs) < 4 {
+		logrus.Warnf("failed to get uuid for volume %s", v.Name)
+		return ""
+	}
+	return idStrs[3]
+}
+
+func cleanupCache(v *jfsVolume) {
+	cacheName := v.Name
+	if strings.Contains(v.Source, "://") {
+		cacheName = getVolumeUUID(v)
+	}
+	if cacheName == "" || cacheName == "." || cacheName == ".." || filepath.Base(cacheName) != cacheName {
+		logrus.Warnf("invalid cache name for volume %s, skipping cleanup", v.Name)
+		return
+	}
+
+	for _, cacheRoot := range getCacheDirs(v) {
+		cacheDir := filepath.Join(cacheRoot, cacheName)
+		if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+			continue
+		}
+		logrus.Infof("cleaning up cache directory %s", cacheDir)
+		if err := os.RemoveAll(cacheDir); err != nil {
+			logrus.Warnf("failed to clean up cache directory %s: %v", cacheDir, err)
+		}
+	}
 }
 
 func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
@@ -373,6 +443,10 @@ func (d *jfsDriver) Remove(r *volume.RemoveRequest) error {
 
 	if err := os.Remove(v.Mountpoint); err != nil && !os.IsNotExist(err) {
 		return logError(err.Error())
+	}
+
+	if v.CleanupCache {
+		cleanupCache(v)
 	}
 
 	delete(d.volumes, r.Name)

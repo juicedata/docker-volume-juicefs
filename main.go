@@ -471,33 +471,46 @@ func (d *jfsDriver) Path(r *volume.PathRequest) (*volume.PathResponse, error) {
 func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error) {
 	logrus.WithField("method", "mount").Debugf("%#v", r)
 
+	d.Lock()
+	defer d.Unlock()
+
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return &volume.MountResponse{}, logError("volume %s not found", r.Name)
 	}
 
-	err := mountVolume(v)
-	if err != nil {
-		return &volume.MountResponse{}, logError("failed to mount %s: %s", r.Name, err)
+	if v.connections == 0 {
+		if err := mountVolume(v); err != nil {
+			return &volume.MountResponse{}, logError("failed to mount %s: %s", r.Name, err)
+		}
 	}
 
 	v.connections++
+	d.saveState()
 	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
 
 func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 	logrus.WithField("method", "umount").Debugf("%#v", r)
 
+	d.Lock()
+	defer d.Unlock()
+
 	v, ok := d.volumes[r.Name]
 	if !ok {
 		return logError("volume %s not found", r.Name)
 	}
 
-	if err := umountVolume(v); err != nil {
-		return logError("failed to umount %s: %s", r.Name, err)
+	if v.connections <= 1 {
+		if err := umountVolume(v); err != nil {
+			return logError("failed to umount %s: %s", r.Name, err)
+		}
+		v.connections = 0
+	} else {
+		v.connections--
 	}
 
-	v.connections--
+	d.saveState()
 	return nil
 }
 

@@ -486,7 +486,6 @@ func (d *jfsDriver) Mount(r *volume.MountRequest) (*volume.MountResponse, error)
 	}
 
 	v.connections++
-	d.saveState()
 	return &volume.MountResponse{Mountpoint: v.Mountpoint}, nil
 }
 
@@ -510,7 +509,6 @@ func (d *jfsDriver) Unmount(r *volume.UnmountRequest) error {
 		v.connections--
 	}
 
-	d.saveState()
 	return nil
 }
 
